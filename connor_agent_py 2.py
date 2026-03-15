@@ -10,7 +10,6 @@ Original file is located at
 #Connor AI agent - M&A Front Screen
 #This tool should NOT be used with confidential or personal data.
 
-!pip install yfinance
 
 def welcome_message():
     print("Hello, I'm Connor . your M&A project assistant.")
