@@ -7,7 +7,7 @@ import numpy as np
 class FinancialLearner:
     def __init__(self, learning_rate=0.1):
         self.lr = learning_rate
-        self.weights = np.array([0.2, 0.4, 0.1])  # θ1, θ2, θ3
+        self.weights = np.array([0.2, 0.4, 0.1])
 
     def predict(self, features):
         return np.dot(self.weights, features)
@@ -29,6 +29,9 @@ QUESTIONS = [
 ]
 
 
+# -----------------------------
+# Basic Analysis
+# -----------------------------
 def basic_screening_analysis(deal, learner):
     revenue = deal["revenue"]
     costs = deal["costs"]
@@ -40,11 +43,9 @@ def basic_screening_analysis(deal, learner):
     margin = profit / revenue if revenue > 0 else 0
     roi = profit / investment if investment > 0 else 0
 
-    # Features for Connor's learner
     features = np.array([margin, roi, exp_return_pct / 100])
     score = learner.predict(features)
 
-    # Simple heuristic target
     target = 1.0 if (roi > 0.2 and margin > 0.15) else 0.3
     error = score - target
     learner.update_weights(features, error)
@@ -104,12 +105,12 @@ for msg in st.session_state.messages:
 
 # Ask next question
 if st.session_state.step < len(QUESTIONS):
-    current_question = QUESTIONS[st.session_state.step]
-    st.markdown(f"**Connor:** {current_question}")
+    st.markdown(f"**Connor:** {QUESTIONS[st.session_state.step]}")
 
-# User input
+# Input box
 user_input = st.text_input("Your answer", key="input_box")
 
+# Process input
 if st.button("Send"):
     text = user_input.strip()
 
@@ -122,3 +123,32 @@ if st.button("Send"):
 
         try:
             if step == 0:
+                deal["industry"] = text
+
+            elif step == 1:
+                deal["revenue"] = float(text)
+
+            elif step == 2:
+                deal["costs"] = float(text)
+
+            elif step == 3:
+                deal["investment"] = float(text)
+
+            elif step == 4:
+                deal["expected_return"] = float(text)
+                report = basic_screening_analysis(deal, connor)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "text": "Here is your initial screening:\n\n" + report
+                })
+
+            st.session_state.step += 1
+
+        except ValueError:
+            st.session_state.messages.append({
+                "role": "assistant",
+                "text": "Please enter a valid number."
+            })
+
+        st.session_state.input_box = ""
+        st.experimental_rerun()
