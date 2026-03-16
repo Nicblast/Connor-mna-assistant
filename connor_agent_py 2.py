@@ -1,79 +1,55 @@
 import streamlit as st
-import yfinance as yf
+import numpy as np
 
-st.set_page_config(page_title="Connor – M&A Assistant", page_icon="🤝")
+# -----------------------------
+# Connor: The Financial Learner
+# -----------------------------
+class FinancialLearner:
+    def __init__(self, learning_rate=0.1):
+        self.lr = learning_rate
+        self.weights = np.array([0.2, 0.4, 0.1])  # θ1, θ2, θ3
 
-st.title("🤝 Connor – Your M&A Project Assistant")
-st.write("Let's go through the intake questions one at a time.")
+    def predict(self, features):
+        return np.dot(self.weights, features)
 
-# --- Question 1 ---
-deal_type = st.selectbox(
-    "First question: What type of M&A deal?",
-    ["Select an option", "Acquisition", "Merger", "Divestiture", "Other"]
-)
+    def update_weights(self, features, error):
+        gradient = error * features
+        self.weights -= self.lr * gradient
 
-if deal_type != "Select an option":
-    st.success(f"Deal type recorded: {deal_type}")
 
-    # --- Question 2 ---
-    industry = st.text_input("Second question: Which industry does the target operate in?")
+# -----------------------------
+# Streamlit App
+# -----------------------------
+st.title("(¬‿¬) Connor — Your Learning Agent")
 
-    if industry:
-        st.success(f"Industry noted: {industry}")
+# Initialize Connor in session state
+if "connor" not in st.session_state:
+    st.session_state.connor = FinancialLearner()
 
-        # --- Question 3 ---
-        deal_size = st.selectbox(
-            "Third question: What is the approximate deal size?",
-            ["Select an option", "<50M", "50–200M", "200M–1B", ">1B", "More"]
-        )
+connor = st.session_state.connor
 
-        if deal_size != "Select an option":
-            st.success(f"Deal size captured: {deal_size}")
+st.subheader("Input Features")
+x1 = st.number_input("Feature x1", value=1.0)
+x2 = st.number_input("Feature x2", value=1.0)
+x3 = st.number_input("Feature x3", value=1.0)
 
-            # --- Question 4 ---
-            risk = st.selectbox(
-                "Fourth question: What is the approximate risk level?",
-                ["Select an option", "High risk", "Moderate risk", "Low risk"]
-            )
+features = np.array([x1, x2, x3])
 
-            if risk != "Select an option":
-                st.success(f"Risk level identified: {risk}")
+if st.button("Predict"):
+    prediction = connor.predict(features)
+    st.write(f"### Connor's Prediction: **{prediction:.4f}**")
 
-                # --- Optional ticker ---
-                ticker = st.text_input(
-                    "Optional: Enter a stock ticker (e.g., AAPL, MSFT) or leave blank"
-                )
+st.subheader("Provide Feedback (Target Value)")
+target = st.number_input("Target Score", value=1.0)
 
-                # --- Summary ---
-                st.subheader("📄 Connor's Summary")
-                st.write(f"**Deal type:** {deal_type}")
-                st.write(f"**Industry:** {industry}")
-                st.write(f"**Deal size:** {deal_size}")
-                st.write(f"**Risk level:** {risk}")
+if st.button("Train Connor"):
+    prediction = connor.predict(features)
+    error = prediction - target
+    connor.update_weights(features, error)
 
-                # --- Recommendation ---
-                st.subheader("📌 Connor's Recommendation")
+    st.write(f"### Error: **{error:.4f}**")
+    st.write("### Updated Weights:")
+    st.write(connor.weights)
 
-                if risk == "High risk":
-                    st.warning("This deal may require enhanced due diligence and deeper risk review.")
-                elif risk == "Moderate risk":
-                    st.info("This deal appears manageable but should be monitored closely.")
-                elif risk == "Low risk":
-                    st.success("This deal seems feasible with no major red flags.")
-
-                # --- Market Data ---
-                if ticker:
-                    st.subheader("📊 Market Data")
-
-                    try:
-                        data = yf.Ticker(ticker)
-                        info = data.info
-
-                        st.write(f"**Company:** {info.get('longName')}")
-                        st.write(f"**Sector:** {info.get('sector')}")
-                        st.write(f"**Industry:** {info.get('industry')}")
-                        st.write(f"**Market Cap:** {info.get('marketCap')}")
-                        st.write(f"**Current Price:** {info.get('currentPrice')}")
-
-                    except Exception:
-                        st.error("Could not retrieve market data for that ticker.")
+st.divider()
+st.caption("Connor learns through gradient descent — every correction makes him a bit smarter.")
