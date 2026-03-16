@@ -1,55 +1,84 @@
 import streamlit as st
 import numpy as np
 
-# -----------------------------
-# Connor: The Financial Learner
-# -----------------------------
+# Connor's brain
 class FinancialLearner:
     def __init__(self, learning_rate=0.1):
         self.lr = learning_rate
-        self.weights = np.array([0.2, 0.4, 0.1])  # θ1, θ2, θ3
-
+        self.weights = np.array([0.2, 0.4, 0.1])
+        
     def predict(self, features):
         return np.dot(self.weights, features)
-
+        
     def update_weights(self, features, error):
         gradient = error * features
         self.weights -= self.lr * gradient
 
 
 # -----------------------------
-# Streamlit App
+# Streamlit Chatbot Connor
 # -----------------------------
-st.title("(¬‿¬) Connor — Your Learning Agent")
+st.title("(¬‿¬) Connor — Your Financial Learning Agent")
 
-# Initialize Connor in session state
+# Initialize Connor
 if "connor" not in st.session_state:
     st.session_state.connor = FinancialLearner()
 
-connor = st.session_state.connor
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    st.session_state.messages.append({"role": "assistant", "text": 
+        "Hey, I'm Connor. I’ll ask you a few things and learn from your feedback."})
 
-st.subheader("Input Features")
-x1 = st.number_input("Feature x1", value=1.0)
-x2 = st.number_input("Feature x2", value=1.0)
-x3 = st.number_input("Feature x3", value=1.0)
 
-features = np.array([x1, x2, x3])
+# Display chat history
+for msg in st.session_state.messages:
+    if msg["role"] == "assistant":
+        st.markdown(f"**Connor:** {msg['text']}")
+    else:
+        st.markdown(f"**You:** {msg['text']}")
 
-if st.button("Predict"):
-    prediction = connor.predict(features)
-    st.write(f"### Connor's Prediction: **{prediction:.4f}**")
 
-st.subheader("Provide Feedback (Target Value)")
-target = st.number_input("Target Score", value=1.0)
+# User input
+user_input = st.text_input("Your message")
 
-if st.button("Train Connor"):
-    prediction = connor.predict(features)
-    error = prediction - target
-    connor.update_weights(features, error)
+if user_input:
+    st.session_state.messages.append({"role": "user", "text": user_input})
 
-    st.write(f"### Error: **{error:.4f}**")
-    st.write("### Updated Weights:")
-    st.write(connor.weights)
+    # Connor logic
+    connor = st.session_state.connor
 
-st.divider()
-st.caption("Connor learns through gradient descent — every correction makes him a bit smarter.")
+    # Expecting 3 features
+    try:
+        x1, x2, x3 = map(float, user_input.split(","))
+        features = np.array([x1, x2, x3])
+
+        prediction = connor.predict(features)
+
+        reply = f"My predicted financial score is **{prediction:.3f}**.\n"
+        reply += "What was the real score? (Just type the number)"
+
+        st.session_state.messages.append({"role": "assistant", "text": reply})
+
+    except:
+        # If user gives the real score
+        try:
+            target = float(user_input)
+
+            # Last features used
+            features = features  # from previous step
+            prediction = connor.predict(features)
+            error = prediction - target
+
+            connor.update_weights(features, error)
+
+            reply = f"Got it. Updating my understanding.\n"
+            reply += f"My new weights are: {connor.weights}"
+
+            st.session_state.messages.append({"role": "assistant", "text": reply})
+
+        except:
+            st.session_state.messages.append({
+                "role": "assistant",
+                "text": "Give me 3 numbers like: 1.2, 0.5, 3.0"
+            })
+
