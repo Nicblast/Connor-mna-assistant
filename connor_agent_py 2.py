@@ -29,11 +29,12 @@ QUESTIONS = [
 
 def basic_screening_analysis(deal, learner):
     try:
-        revenue = float(str(deal["revenue"]).replace(',', ''))
-        costs = float(str(deal["costs"]).replace(',', ''))
-        investment = float(str(deal["investment"]).replace(',', ''))
-        exp_return_pct = float(str(deal["expected_return"]).replace(',', ''))
-        industry = deal["industry"]
+        # Convert inputs to float, removing commas if the user typed them
+        revenue = float(str(deal.get("revenue", 0)).replace(',', ''))
+        costs = float(str(deal.get("costs", 0)).replace(',', ''))
+        investment = float(str(deal.get("investment", 1)).replace(',', '')) # avoid div by zero
+        exp_return_pct = float(str(deal.get("expected_return", 0)).replace(',', ''))
+        industry = deal.get("industry", "Unknown")
 
         profit = revenue - costs
         margin = profit / revenue if revenue > 0 else 0
@@ -61,8 +62,8 @@ def basic_screening_analysis(deal, learner):
 **Connor's Deal Score:** {score:.3f}  
 {verdict}
 """
-    except Exception as e:
-        return "Calculation error. Please ensure all values were entered correctly."
+    except ValueError:
+        return "I couldn't process those numbers. Please ensure they were entered as digits (e.g., 50000)."
 
 # -----------------------------
 # Streamlit App UI
@@ -82,42 +83,43 @@ if "deal" not in st.session_state:
 
 # Display chat history
 for msg in st.session_state.messages:
-    # Custom label for the assistant
     label = "Connor: Business Analyst" if msg["role"] == "assistant" else "You"
     with st.chat_message(msg["role"]):
         st.write(f"**{label}**")
         st.markdown(msg["content"])
 
-# Handle Input
+# Input logic
 if st.session_state.step < len(QUESTIONS):
-    if user_input := st.chat_input("Type your answer here..."):
-        # Save User Message
+    # Ask the current question
+    if st.session_state.step == 0 and len(st.session_state.messages) == 1:
+         st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[0]})
+         st.rerun()
+
+    if user_input := st.chat_input("Type your answer..."):
+        # Record user message
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        try:
-            keys = ["industry", "revenue", "costs", "investment", "expected_return"]
-            current_key = keys[st.session_state.step]
-            
-            # Save data
-            st.session_state.deal[current_key] = user_input
-            st.session_state.step += 1
-
-            # Logic for next prompt
-            if st.session_state.step == len(QUESTIONS):
-                report = basic_screening_analysis(st.session_state.deal, st.session_state.connor_brain)
-                st.session_state.messages.append({"role": "assistant", "content": f"Screening Complete:\n{report}"})
-            else:
-                next_q = QUESTIONS[st.session_state.step]
-                st.session_state.messages.append({"role": "assistant", "content": next_q})
-            
-            st.rerun()
-
-        except Exception:
-            st.session_state.messages.append({"role": "assistant", "content": "Sorry, I ran into an error processing that. Let's try that last value again."})
-            st.rerun()
+        # Save data to the deal dictionary
+        keys = ["industry", "revenue", "costs", "investment", "expected_return"]
+        current_key = keys[st.session_state.step]
+        st.session_state.deal[current_key] = user_input
+        
+        # Advance the step
+        st.session_state.step += 1
+        
+        # Determine next response
+        if st.session_state.step < len(QUESTIONS):
+            next_q = QUESTIONS[st.session_state.step]
+            st.session_state.messages.append({"role": "assistant", "content": next_q})
+        else:
+            # All questions answered, generate report
+            report = basic_screening_analysis(st.session_state.deal, st.session_state.connor_brain)
+            st.session_state.messages.append({"role": "assistant", "content": f"Screening Complete:\n{report}"})
+        
+        st.rerun()
 else:
     if st.button("Analyze Another Deal"):
         st.session_state.step = 0
         st.session_state.deal = {}
-        st.session_state.messages = [{"role": "assistant", "content": "Ready for a new deal. What industry is it in?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor: Business Analyst. Let's look at a new deal.\n\n" + QUESTIONS[0]}]
         st.rerun()
