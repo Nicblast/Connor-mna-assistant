@@ -53,40 +53,76 @@ def generate_analysis_grid(deal, score):
     return pd.DataFrame(grid_data)
 
 # -----------------------------
-# Streamlit UI & Dark Theme
+# UI & Midnight Style
 # -----------------------------
-st.set_page_config(page_title="Connor Analyst", page_icon="🟢")
+st.set_page_config(page_title="Connor Analyst", page_icon="")
 
-# Deloitte Midnight Style
 st.markdown("""
     <style>
-    /* Main Background */
     .stApp { background-color: #000000; color: #ffffff; }
-    
-    /* Headers */
     h1, h2, h3, h4, p, span, label { color: #ffffff !important; }
-    
-    /* Buttons */
-    .stButton>button { 
-        background-color: #86BC25; 
-        color: black !important; 
-        border-radius: 2px; 
-        border: none; 
-        font-weight: bold;
-        width: 100%;
-    }
-    .stButton>button:hover { background-color: #ffffff; color: #86BC25 !important; }
-    
-    /* Chat Bubbles */
-    [data-testid="stChatMessage"] { 
-        background-color: #1a1a1a; 
-        border-left: 5px solid #86BC25; 
-        color: #ffffff;
-    }
-    
-    /* Tables and Inputs */
-    .stTable { background-color: #1a1a1a; color: #ffffff; }
-    div[data-baseweb="input"] { background-color: #333333 !important; color: white !important; }
-    
-    /* Metrics/Expander */
-    .streamlit-expanderHeader { background-color: #1a1a1a !important; color: #86BC25 !important; }
+    .stButton>button { background-color: #86BC25; color: black !important; font-weight: bold; }
+    [data-testid="stChatMessage"] { background-color: #1a1a1a; border-left: 5px solid #86BC25; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("Connor Analyst")
+st.markdown("#### First screening")
+
+if "connor_brain" not in st.session_state:
+    st.session_state.connor_brain = FinancialLearner()
+if "messages" not in st.session_state:
+    st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor Analyst. Let's begin."}]
+if "step" not in st.session_state:
+    st.session_state.step = 0
+if "deal" not in st.session_state:
+    st.session_state.deal = {}
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        if "grid" in msg and msg["grid"] is not None:
+            st.table(msg["grid"])
+        # FIXED: Ensure chart data is a DataFrame
+        if "chart_data" in msg:
+            st.bar_chart(msg["chart_data"])
+        if "copy_text" in msg:
+            with st.expander("📋 Copy Report Data"):
+                st.text_area("Plain Text", msg["copy_text"], height=150)
+
+if st.session_state.step < len(QUESTIONS):
+    if st.session_state.step == 0 and len(st.session_state.messages) == 1:
+        st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[0]})
+        st.rerun()
+
+    if user_input := st.chat_input("Provide data..."):
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        keys = ["industry", "revenue", "costs", "investment", "expected_return"]
+        st.session_state.deal[keys[st.session_state.step]] = user_input
+        st.session_state.step += 1
+        
+        if st.session_state.step < len(QUESTIONS):
+            st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[st.session_state.step]})
+        else:
+            try:
+                r = float(str(st.session_state.deal.get("revenue")).replace(',', ''))
+                c = float(str(st.session_state.deal.get("costs")).replace(',', ''))
+                i = float(str(st.session_state.deal.get("investment")).replace(',', ''))
+                rt = float(str(st.session_state.deal.get("expected_return")).replace(',', ''))
+                
+                score = st.session_state.connor_brain.predict(np.array([(r-c)/r, (r-c)/i, rt/100]))
+                df_grid = generate_analysis_grid(st.session_state.deal, score)
+                
+                # FIXED: Data structure for bar chart
+                df_chart = pd.DataFrame({"Value": [r, c, r-c]}, index=["Revenue", "Costs", "Profit"])
+                
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": f"**Analysis complete.** Score: `{score:.3f}`",
+                    "grid": df_grid,
+                    "chart_data": df_chart, # Pass the DF directly
+                    "copy_text": "Analysis Report..."
+                })
+            except Exception as e:
+                st.error(f"Error: {e}")
+        st.rerun()
