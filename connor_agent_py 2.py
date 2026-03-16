@@ -1,84 +1,66 @@
 import streamlit as st
 import numpy as np
 
+# -----------------------------
 # Connor's brain
+# -----------------------------
 class FinancialLearner:
     def __init__(self, learning_rate=0.1):
         self.lr = learning_rate
+        # θ1, θ2, θ3
         self.weights = np.array([0.2, 0.4, 0.1])
-        
+
     def predict(self, features):
         return np.dot(self.weights, features)
-        
+
     def update_weights(self, features, error):
         gradient = error * features
         self.weights -= self.lr * gradient
 
 
 # -----------------------------
-# Streamlit Chatbot Connor
+# Helpers
 # -----------------------------
-st.title("(¬‿¬) Connor — Your Financial Learning Agent")
+QUESTIONS = [
+    "What industry is this deal in?",
+    "What is the expected annual revenue (in €)?",
+    "What are the annual costs (in €)?",
+    "How much capital needs to be invested (in €)?",
+    "What is the expected annual return (%)?"
+]
 
-# Initialize Connor
-if "connor" not in st.session_state:
-    st.session_state.connor = FinancialLearner()
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    st.session_state.messages.append({"role": "assistant", "text": 
-        "Hey, I'm Connor. I’ll ask you a few things and learn from your feedback."})
+def get_next_question(step):
+    if step < len(QUESTIONS):
+        return QUESTIONS[step]
+    return None
 
 
-# Display chat history
-for msg in st.session_state.messages:
-    if msg["role"] == "assistant":
-        st.markdown(f"**Connor:** {msg['text']}")
+def basic_screening_analysis(deal, learner):
+    revenue = deal["revenue"]
+    costs = deal["costs"]
+    investment = deal["investment"]
+    exp_return_pct = deal["expected_return"]  # as %
+    industry = deal["industry"]
+
+    profit = revenue - costs
+    margin = profit / revenue if revenue > 0 else 0.0
+    roi = profit / investment if investment > 0 else 0.0
+    cash_flow = profit  # simple model
+
+    # Features for Connor's learner
+    features = np.array([margin, roi, exp_return_pct / 100.0])
+    score = learner.predict(features)
+
+    # Simple heuristic target for learning (under the hood)
+    # good deal if ROI > 20% and margin > 15%
+    target = 1.0 if (roi > 0.2 and margin > 0.15) else 0.3
+    error = score - target
+    learner.update_weights(features, error)
+
+    # Simple interpretation
+    if score >= 0.7:
+        verdict = "This looks like a **promising deal** at first glance."
+    elif score >= 0.4:
+        verdict = "This deal is **borderline**. It might work, but risks are noticeable."
     else:
-        st.markdown(f"**You:** {msg['text']}")
-
-
-# User input
-user_input = st.text_input("Your message")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "text": user_input})
-
-    # Connor logic
-    connor = st.session_state.connor
-
-    # Expecting 3 features
-    try:
-        x1, x2, x3 = map(float, user_input.split(","))
-        features = np.array([x1, x2, x3])
-
-        prediction = connor.predict(features)
-
-        reply = f"My predicted financial score is **{prediction:.3f}**.\n"
-        reply += "What was the real score? (Just type the number)"
-
-        st.session_state.messages.append({"role": "assistant", "text": reply})
-
-    except:
-        # If user gives the real score
-        try:
-            target = float(user_input)
-
-            # Last features used
-            features = features  # from previous step
-            prediction = connor.predict(features)
-            error = prediction - target
-
-            connor.update_weights(features, error)
-
-            reply = f"Got it. Updating my understanding.\n"
-            reply += f"My new weights are: {connor.weights}"
-
-            st.session_state.messages.append({"role": "assistant", "text": reply})
-
-        except:
-            st.session_state.messages.append({
-                "role": "assistant",
-                "text": "Give me 3 numbers like: 1.2, 0.5, 3.0"
-            })
-
+        verdict = "This looks like a **weak deal** based on the basic numbers
