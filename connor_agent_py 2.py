@@ -18,7 +18,7 @@ class FinancialLearner:
         self.weights -= self.lr * gradient
 
 # -----------------------------
-# Questions & Logic
+# Questions & Analysis Logic
 # -----------------------------
 QUESTIONS = [
     "What industry is this deal in?",
@@ -29,74 +29,109 @@ QUESTIONS = [
 ]
 
 def generate_analysis_grid(deal, score):
-    # Core Financials
+    # Data extraction with safety defaults
     rev = float(str(deal.get("revenue", 0)).replace(',', ''))
     cost = float(str(deal.get("costs", 0)).replace(',', ''))
-    inv = float(str(deal.get("investment", 1)).replace(',', ''))
     
-    # Logic for dynamic suggestions based on score
+    # Intelligence logic for the grid
     if score >= 0.7:
-        risk = "Low - Execution risk mainly."
-        action = "Proceed to due diligence immediately."
-        alt_sol = "Equity financing to preserve cash flow."
-        alternatives = "Expansion into adjacent markets."
+        risk, action = "Low - Execution focus", "Proceed to Due Diligence"
+        alt_sol, alts = "Equity structure", "Market expansion"
     elif score >= 0.4:
-        risk = "Medium - Market volatility or high overheads."
-        action = "Renegotiate costs before committing."
-        alt_sol = "Phased investment approach."
-        alternatives = "Joint venture to split the risk."
+        risk, action = "Medium - Margin pressure", "Renegotiate terms"
+        alt_sol, alts = "Phased funding", "Joint Venture"
     else:
-        risk = "High - Poor margin/ROI ratio."
-        action = "Pivot or walk away."
-        alt_sol = "Drastic cost restructuring."
-        alternatives = "Wait for better market conditions."
+        risk, action = "High - Financial instability", "Exit/Decline"
+        alt_sol, alts = "Debt restructuring", "Operational pivot"
 
-    data = {
-        "Category": ["Revenue", "Costs", "Profit", "Risks", "Best Course of Action", "Alternative Solutions", "Other Alternatives"],
+    grid_data = {
+        "Analysis Point": ["Revenue", "Costs", "Net Profit", "Risk Profile", "Best Course of Action", "Alternative Solutions", "Alternatives"],
         "Details": [
             f"€{rev:,.2f}", 
             f"€{cost:,.2f}", 
             f"€{(rev-cost):,.2f}",
-            risk, 
-            action, 
-            alt_sol, 
-            alternatives
+            risk, action, alt_sol, alts
         ]
     }
-    return pd.DataFrame(data)
-
-def basic_screening_analysis(deal, learner):
-    try:
-        revenue = float(str(deal.get("revenue", 0)).replace(',', ''))
-        costs = float(str(deal.get("costs", 0)).replace(',', ''))
-        investment = float(str(deal.get("investment", 1)).replace(',', ''))
-        exp_return_pct = float(str(deal.get("expected_return", 0)).replace(',', ''))
-        
-        profit = revenue - costs
-        margin = profit / revenue if revenue > 0 else 0
-        roi = profit / investment if investment > 0 else 0
-
-        features = np.array([margin, roi, exp_return_pct / 100])
-        score = learner.predict(features)
-
-        # Update Learner
-        target = 1.0 if (roi > 0.2 and margin > 0.15) else 0.3
-        learner.update_weights(features, score - target)
-
-        return score, f"**Industry:** {deal.get('industry')}"
-    except:
-        return 0, "Error in processing data."
+    return pd.DataFrame(grid_data)
 
 # -----------------------------
-# Streamlit App UI
+# Streamlit UI
 # -----------------------------
 st.set_page_config(page_title="Connor Analyst", page_icon="📈")
 st.title("Connor Analyst")
-st.caption("First screening")
+st.markdown("### First screening")
 
-# Initialize session state
+# Initialize Session States
 if "connor_brain" not in st.session_state:
     st.session_state.connor_brain = FinancialLearner()
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor Analyst. Let's start the first screening."}]
+    st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor Analyst. Let's begin the first screening."}]
 if "step" not in st.session_state:
+    st.session_state.step = 0
+if "deal" not in st.session_state:
+    st.session_state.deal = {}
+
+# Display Chat History
+for msg in st.session_state.messages:
+    label = "Connor Analyst" if msg["role"] == "assistant" else "You"
+    with st.chat_message(msg["role"]):
+        st.write(f"**{label}**")
+        st.markdown(msg["content"])
+        # FIX: Check if grid exists and is not None before trying to display
+        if "grid" in msg and msg["grid"] is not None:
+            st.table(msg["grid"])
+
+# Handle Conversation
+if st.session_state.step < len(QUESTIONS):
+    # Auto-prompt the first question
+    if st.session_state.step == 0 and len(st.session_state.messages) == 1:
+        st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[0]})
+        st.rerun()
+
+    if user_input := st.chat_input("Enter your answer..."):
+        # Save user response
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        
+        # Map input to deal data
+        keys = ["industry", "revenue", "costs", "investment", "expected_return"]
+        st.session_state.deal[keys[st.session_state.step]] = user_input
+        st.session_state.step += 1
+        
+        if st.session_state.step < len(QUESTIONS):
+            # Ask next question
+            st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[st.session_state.step]})
+        else:
+            # Final Analysis
+            try:
+                # Math calculations
+                rev_val = float(str(st.session_state.deal.get("revenue")).replace(',', ''))
+                cost_val = float(str(st.session_state.deal.get("costs")).replace(',', ''))
+                inv_val = float(str(st.session_state.deal.get("investment")).replace(',', ''))
+                ret_val = float(str(st.session_state.deal.get("expected_return")).replace(',', ''))
+                
+                margin = (rev_val - cost_val) / rev_val if rev_val > 0 else 0
+                roi = (rev_val - cost_val) / inv_val if inv_val > 0 else 0
+                
+                # Predict score
+                features = np.array([margin, roi, ret_val / 100])
+                score = st.session_state.connor_brain.predict(features)
+                
+                # Generate Grid
+                df_results = generate_analysis_grid(st.session_state.deal, score)
+                
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": f"**First screening complete for {st.session_state.deal['industry']}.**\n\nConnor's Score: `{score:.3f}`",
+                    "grid": df_results
+                })
+            except Exception:
+                st.session_state.messages.append({"role": "assistant", "content": "I had trouble with the numbers provided. Please start a new screening and use digits only."})
+        
+        st.rerun()
+else:
+    if st.button("New Screening"):
+        st.session_state.step = 0
+        st.session_state.deal = {}
+        st.session_state.messages = [{"role": "assistant", "content": "Starting a new first screening. " + QUESTIONS[0]}]
+        st.rerun()
