@@ -29,23 +29,26 @@ QUESTIONS = [
 ]
 
 def generate_analysis_grid(deal, score):
-    # Data extraction with safety defaults
     rev = float(str(deal.get("revenue", 0)).replace(',', ''))
     cost = float(str(deal.get("costs", 0)).replace(',', ''))
     
-    # Intelligence logic for the grid
+    # Logical assessments based on performance
     if score >= 0.7:
         risk, action = "Low - Execution focus", "Proceed to Due Diligence"
-        alt_sol, alts = "Equity structure", "Market expansion"
+        alt_sol, alts = "Equity structure to scale", "Expansion into adjacent markets"
     elif score >= 0.4:
-        risk, action = "Medium - Margin pressure", "Renegotiate terms"
-        alt_sol, alts = "Phased funding", "Joint Venture"
+        risk, action = "Medium - Margin pressure", "Renegotiate operational costs"
+        alt_sol, alts = "Phased funding rounds", "Joint Venture partnership"
     else:
-        risk, action = "High - Financial instability", "Exit/Decline"
-        alt_sol, alts = "Debt restructuring", "Operational pivot"
+        risk, action = "High - Financial instability", "Immediate Exit / Decline"
+        alt_sol, alts = "Debt restructuring", "Pivot business model"
 
     grid_data = {
-        "Analysis Point": ["Revenue", "Costs", "Net Profit", "Risk Profile", "Best Course of Action", "Alternative Solutions", "Alternatives"],
+        "Analysis Point": [
+            "Revenue", "Costs", "Net Profit", 
+            "Risk Profile", "Best Course of Action", 
+            "Alternative Solutions", "Alternatives"
+        ],
         "Details": [
             f"€{rev:,.2f}", 
             f"€{cost:,.2f}", 
@@ -58,9 +61,11 @@ def generate_analysis_grid(deal, score):
 # -----------------------------
 # Streamlit UI
 # -----------------------------
-st.set_page_config(page_title="Connor Analyst", page_icon="📈")
+st.set_page_config(page_title="Connor Analyst", page_icon="📈", layout="centered")
+
+# Branding
 st.title("Connor Analyst")
-st.markdown("### First screening")
+st.markdown("#### First screening")
 
 # Initialize Session States
 if "connor_brain" not in st.session_state:
@@ -78,9 +83,14 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(f"**{label}**")
         st.markdown(msg["content"])
-        # FIX: Check if grid exists and is not None before trying to display
+        
+        # Display Grid if it exists
         if "grid" in msg and msg["grid"] is not None:
             st.table(msg["grid"])
+        
+        # Display Charts if they exist
+        if "chart_data" in msg and msg["chart_data"] is not None:
+            st.bar_chart(msg["chart_data"])
 
 # Handle Conversation
 if st.session_state.step < len(QUESTIONS):
@@ -90,48 +100,62 @@ if st.session_state.step < len(QUESTIONS):
         st.rerun()
 
     if user_input := st.chat_input("Enter your answer..."):
-        # Save user response
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        # Map input to deal data
         keys = ["industry", "revenue", "costs", "investment", "expected_return"]
         st.session_state.deal[keys[st.session_state.step]] = user_input
         st.session_state.step += 1
         
         if st.session_state.step < len(QUESTIONS):
-            # Ask next question
             st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[st.session_state.step]})
         else:
-            # Final Analysis
+            # --- FINAL ANALYSIS BLOCK ---
             try:
-                # Math calculations
-                rev_val = float(str(st.session_state.deal.get("revenue")).replace(',', ''))
-                cost_val = float(str(st.session_state.deal.get("costs")).replace(',', ''))
-                inv_val = float(str(st.session_state.deal.get("investment")).replace(',', ''))
-                ret_val = float(str(st.session_state.deal.get("expected_return")).replace(',', ''))
+                # Math conversions
+                rev_v = float(str(st.session_state.deal.get("revenue")).replace(',', ''))
+                cost_v = float(str(st.session_state.deal.get("costs")).replace(',', ''))
+                inv_v = float(str(st.session_state.deal.get("investment")).replace(',', ''))
+                ret_v = float(str(st.session_state.deal.get("expected_return")).replace(',', ''))
                 
-                margin = (rev_val - cost_val) / rev_val if rev_val > 0 else 0
-                roi = (rev_val - cost_val) / inv_val if inv_val > 0 else 0
+                profit = rev_v - cost_v
+                margin = profit / rev_v if rev_v > 0 else 0
+                roi = profit / inv_v if inv_v > 0 else 0
                 
-                # Predict score
-                features = np.array([margin, roi, ret_val / 100])
+                # Connor's Prediction
+                features = np.array([margin, roi, ret_v / 100])
                 score = st.session_state.connor_brain.predict(features)
                 
-                # Generate Grid
-                df_results = generate_analysis_grid(st.session_state.deal, score)
+                # Visual Data preparation
+                chart_df = pd.DataFrame({
+                    "Financials": ["Revenue", "Costs", "Profit"],
+                    "Amount (€)": [rev_v, cost_v, profit]
+                }).set_index("Financials")
+
+                df_grid = generate_analysis_grid(st.session_state.deal, score)
                 
+                # Build the response with metrics and visuals
+                summary_text = f"""
+### Analysis Complete for {st.session_state.deal['industry']}
+**Connor's Final Score:** `{score:.3f}`
+
+---
+"""
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": f"**First screening complete for {st.session_state.deal['industry']}.**\n\nConnor's Score: `{score:.3f}`",
-                    "grid": df_results
+                    "content": summary_text,
+                    "grid": df_grid,
+                    "chart_data": chart_df
                 })
-            except Exception:
-                st.session_state.messages.append({"role": "assistant", "content": "I had trouble with the numbers provided. Please start a new screening and use digits only."})
+            except Exception as e:
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": "I couldn't calculate that. Please ensure you enter numbers without symbols."
+                })
         
         st.rerun()
 else:
-    if st.button("New Screening"):
+    if st.button("Start New Screening"):
         st.session_state.step = 0
         st.session_state.deal = {}
-        st.session_state.messages = [{"role": "assistant", "content": "Starting a new first screening. " + QUESTIONS[0]}]
+        st.session_state.messages = [{"role": "assistant", "content": "Ready for a new first screening. " + QUESTIONS[0]}]
         st.rerun()
