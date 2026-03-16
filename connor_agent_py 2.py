@@ -33,7 +33,6 @@ def generate_analysis_grid(deal, score):
     cost = float(str(deal.get("costs", 0)).replace(',', ''))
     inv = float(str(deal.get("investment", 1)).replace(',', ''))
     
-    # Consulting Logic
     if score >= 0.7:
         risk, action = "Low - Execution focus", "Proceed to Due Diligence"
         alt_sol = "Equity structure to scale"
@@ -54,59 +53,40 @@ def generate_analysis_grid(deal, score):
     return pd.DataFrame(grid_data)
 
 # -----------------------------
-# Streamlit UI & Theme
+# Streamlit UI & Dark Theme
 # -----------------------------
 st.set_page_config(page_title="Connor Analyst", page_icon="🟢")
 
-# Deloitte Branding via Markdown
+# Deloitte Midnight Style
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; }
-    h1, h2, h3 { color: #000000 !important; font-family: 'Open Sans', sans-serif; }
-    .stButton>button { background-color: #86BC25; color: white; border-radius: 0px; border: none; }
-    .stButton>button:hover { background-color: #000000; color: #86BC25; }
-    /* Chat Styling */
-    [data-testid="stChatMessage"] { background-color: #f3f3f3; border-left: 5px solid #86BC25; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("Connor Analyst 🟢")
-st.markdown("**First screening** | *Strategic Deal Assessment*")
-
-if "connor_brain" not in st.session_state:
-    st.session_state.connor_brain = FinancialLearner()
-if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor Analyst. Let's begin the first screening."}]
-if "step" not in st.session_state:
-    st.session_state.step = 0
-if "deal" not in st.session_state:
-    st.session_state.deal = {}
-
-# Display Chat
-for msg in st.session_state.messages:
-    label = "Connor Analyst" if msg["role"] == "assistant" else "Client"
-    with st.chat_message(msg["role"]):
-        st.write(f"**{label}**")
-        st.markdown(msg["content"])
-        if "grid" in msg and msg["grid"] is not None:
-            st.table(msg["grid"])
-        if "chart" in msg and msg["chart"] is not None:
-            st.bar_chart(msg["chart"], color="#86BC25") # Deloitte Green
-        if "copy_text" in msg:
-            with st.expander("📋 Copy Report Data"):
-                st.text_area("Plain Text Format", msg["copy_text"], height=150)
-
-# Input logic
-if st.session_state.step < len(QUESTIONS):
-    if st.session_state.step == 0 and len(st.session_state.messages) == 1:
-        st.session_state.messages.append({"role": "assistant", "content": QUESTIONS[0]})
-        st.rerun()
-
-    if user_input := st.chat_input("Enter response..."):
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        keys = ["industry", "revenue", "costs", "investment", "expected_return"]
-        st.session_state.deal[keys[st.session_state.step]] = user_input
-        st.session_state.step += 1
-        
-        if st.session_state.step < len(QUESTIONS):
-            st.session
+    /* Main Background */
+    .stApp { background-color: #000000; color: #ffffff; }
+    
+    /* Headers */
+    h1, h2, h3, h4, p, span, label { color: #ffffff !important; }
+    
+    /* Buttons */
+    .stButton>button { 
+        background-color: #86BC25; 
+        color: black !important; 
+        border-radius: 2px; 
+        border: none; 
+        font-weight: bold;
+        width: 100%;
+    }
+    .stButton>button:hover { background-color: #ffffff; color: #86BC25 !important; }
+    
+    /* Chat Bubbles */
+    [data-testid="stChatMessage"] { 
+        background-color: #1a1a1a; 
+        border-left: 5px solid #86BC25; 
+        color: #ffffff;
+    }
+    
+    /* Tables and Inputs */
+    .stTable { background-color: #1a1a1a; color: #ffffff; }
+    div[data-baseweb="input"] { background-color: #333333 !important; color: white !important; }
+    
+    /* Metrics/Expander */
+    .streamlit-expanderHeader { background-color: #1a1a1a !important; color: #86BC25 !important; }
