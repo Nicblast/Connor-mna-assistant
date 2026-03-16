@@ -16,9 +16,8 @@ class FinancialLearner:
         gradient = error * features
         self.weights -= self.lr * gradient
 
-
 # -----------------------------
-# Questions
+# Questions & Logic
 # -----------------------------
 QUESTIONS = [
     "What industry is this deal in?",
@@ -28,127 +27,97 @@ QUESTIONS = [
     "What is the expected annual return (%)?"
 ]
 
-
-# -----------------------------
-# Basic Analysis
-# -----------------------------
 def basic_screening_analysis(deal, learner):
-    revenue = deal["revenue"]
-    costs = deal["costs"]
-    investment = deal["investment"]
-    exp_return_pct = deal["expected_return"]
-    industry = deal["industry"]
+    try:
+        revenue = float(str(deal["revenue"]).replace(',', ''))
+        costs = float(str(deal["costs"]).replace(',', ''))
+        investment = float(str(deal["investment"]).replace(',', ''))
+        exp_return_pct = float(str(deal["expected_return"]).replace(',', ''))
+        industry = deal["industry"]
 
-    profit = revenue - costs
-    margin = profit / revenue if revenue > 0 else 0
-    roi = profit / investment if investment > 0 else 0
+        profit = revenue - costs
+        margin = profit / revenue if revenue > 0 else 0
+        roi = profit / investment if investment > 0 else 0
 
-    features = np.array([margin, roi, exp_return_pct / 100])
-    score = learner.predict(features)
+        features = np.array([margin, roi, exp_return_pct / 100])
+        score = learner.predict(features)
 
-    target = 1.0 if (roi > 0.2 and margin > 0.15) else 0.3
-    error = score - target
-    learner.update_weights(features, error)
+        target = 1.0 if (roi > 0.2 and margin > 0.15) else 0.3
+        error = score - target
+        learner.update_weights(features, error)
 
-    if score >= 0.7:
-        verdict = "This looks like a **promising deal**."
-    elif score >= 0.4:
-        verdict = "This deal is **borderline**."
-    else:
-        verdict = "This looks like a **weak deal**."
+        if score >= 0.7:
+            verdict = "This looks like a **promising deal**."
+        elif score >= 0.4:
+            verdict = "This deal is **borderline**."
+        else:
+            verdict = "This looks like a **weak deal**."
 
-    report = f"""
-**Industry:** {industry}
+        return f"""
+**Industry:** {industry}  
+**Revenue:** €{revenue:,.2f} | **Costs:** €{costs:,.2f} | **Profit:** €{profit:,.2f}  
+**Profit Margin:** {margin*100:.2f}% | **ROI:** {roi*100:.2f}% | **Expected Return:** {exp_return_pct:.2f}%  
 
-**Revenue:** €{revenue:,.2f}  
-**Costs:** €{costs:,.2f}  
-**Profit:** €{profit:,.2f}  
-
-**Profit Margin:** {margin*100:.2f}%  
-**ROI:** {roi*100:.2f}%  
-**Expected Return:** {exp_return_pct:.2f}%  
-
-**Connor's Deal Score:** {score:.3f}
-
+**Connor's Deal Score:** {score:.3f}  
 {verdict}
 """
-    return report
-
+    except Exception as e:
+        return "Calculation error. Please ensure all values were entered correctly."
 
 # -----------------------------
-# Streamlit App
+# Streamlit App UI
 # -----------------------------
-st.title("(¬‿¬) Connor — Basic Deal Screener")
+st.set_page_config(page_title="Connor Business Analyst", page_icon="📊")
+st.title("Connor: Business Analyst")
 
 # Initialize session state
-if "connor" not in st.session_state:
-    st.session_state.connor = FinancialLearner()
-
+if "connor_brain" not in st.session_state:
+    st.session_state.connor_brain = FinancialLearner()
 if "messages" not in st.session_state:
-    st.session_state.messages = [{
-        "role": "assistant",
-        "text": "Hi, I'm Connor. I'll ask you a few questions about your deal."
-    }]
-
+    st.session_state.messages = [{"role": "assistant", "content": "Hi, I'm Connor: Business Analyst. Let's look at your deal."}]
 if "step" not in st.session_state:
     st.session_state.step = 0
-
 if "deal" not in st.session_state:
     st.session_state.deal = {}
 
 # Display chat history
 for msg in st.session_state.messages:
-    if msg["role"] == "assistant":
-        st.markdown(f"**Connor:** {msg['text']}")
-    else:
-        st.markdown(f"**You:** {msg['text']}")
+    # Custom label for the assistant
+    label = "Connor: Business Analyst" if msg["role"] == "assistant" else "You"
+    with st.chat_message(msg["role"]):
+        st.write(f"**{label}**")
+        st.markdown(msg["content"])
 
-# Ask next question
+# Handle Input
 if st.session_state.step < len(QUESTIONS):
-    st.markdown(f"**Connor:** {QUESTIONS[st.session_state.step]}")
-
-# Input box
-user_input = st.text_input("Your answer", key="input_box")
-
-# Process input
-if st.button("Send"):
-    text = user_input.strip()
-
-    if text:
-        st.session_state.messages.append({"role": "user", "text": text})
-
-        step = st.session_state.step
-        deal = st.session_state.deal
-        connor = st.session_state.connor
-
+    if user_input := st.chat_input("Type your answer here..."):
+        # Save User Message
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        
         try:
-            if step == 0:
-                deal["industry"] = text
-
-            elif step == 1:
-                deal["revenue"] = float(text)
-
-            elif step == 2:
-                deal["costs"] = float(text)
-
-            elif step == 3:
-                deal["investment"] = float(text)
-
-            elif step == 4:
-                deal["expected_return"] = float(text)
-                report = basic_screening_analysis(deal, connor)
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "text": "Here is your initial screening:\n\n" + report
-                })
-
+            keys = ["industry", "revenue", "costs", "investment", "expected_return"]
+            current_key = keys[st.session_state.step]
+            
+            # Save data
+            st.session_state.deal[current_key] = user_input
             st.session_state.step += 1
 
-        except ValueError:
-            st.session_state.messages.append({
-                "role": "assistant",
-                "text": "Please enter a valid number."
-            })
+            # Logic for next prompt
+            if st.session_state.step == len(QUESTIONS):
+                report = basic_screening_analysis(st.session_state.deal, st.session_state.connor_brain)
+                st.session_state.messages.append({"role": "assistant", "content": f"Screening Complete:\n{report}"})
+            else:
+                next_q = QUESTIONS[st.session_state.step]
+                st.session_state.messages.append({"role": "assistant", "content": next_q})
+            
+            st.rerun()
 
-        st.session_state.input_box = ""
-        st.experimental_rerun()
+        except Exception:
+            st.session_state.messages.append({"role": "assistant", "content": "Sorry, I ran into an error processing that. Let's try that last value again."})
+            st.rerun()
+else:
+    if st.button("Analyze Another Deal"):
+        st.session_state.step = 0
+        st.session_state.deal = {}
+        st.session_state.messages = [{"role": "assistant", "content": "Ready for a new deal. What industry is it in?"}]
+        st.rerun()
